@@ -1,0 +1,98 @@
+#author: tpl
+#date: 2019.12.18
+#Classifier use PyTorch (CIFAR10 dataset)
+
+import torch
+import torchvision
+import torchvision.transforms as transforms
+from torch.autograd import  Variable
+import torch.nn as nn
+import torch.nn.functional as F
+import CNN_1
+
+
+
+# 设置训练参数
+EPOCHS = 20 
+BATCH_SIZE = 10
+
+# 创建一个转换器，将torchvision数据集的输出范围[0,1]转换为归一化范围的张量[-1,1]。
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+help(torchvision)
+
+# 创建训练集
+trainset = torchvision.datasets.CIFAR10(root='/data/cifar10_dataset', train=True,
+                                        download=True, transform=transform)
+# 创建训练加载器
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE,
+                                          shuffle=True, num_workers=1)
+
+# 创建测试集
+testset = torchvision.datasets.CIFAR10(root='/data/cifar10_dataset', train=False,
+                                       download=True, transform=transform)
+# 创建测试加载器
+testloader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
+                                         shuffle=False, num_workers=1)
+
+# 类别标签
+classes = ('plane', 'car', 'bird', 'cat',
+           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+
+def train(model, criterion, optimizer, trainloader, epochs=5, log_interval=50):
+    print('----- Train Start -----')
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for step, (batch_x, batch_y) in enumerate(trainloader):
+            # get inputs
+            batch_x, batch_y = batch_x.cuda(), batch_y.cuda()
+
+            output = model(batch_x)
+
+            optimizer.zero_grad()
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            if step % log_interval == (log_interval-1):
+                print('[%d, %5d] loss: %.4f' %
+                      (epoch + 1, step + 1, running_loss / log_interval))
+                running_loss = 0.0
+    print('----- Train Finished -----')
+    
+    for param_tensor in model.state_dict():
+        print(param_tensor, '\t', model.state_dict()[param_tensor].size())
+
+    torch.save(model.state_dict(), 'model.pth')
+    print('----- Save Finished -----')
+
+
+def test(model, testloader):
+    print('------ Test Start -----')
+
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for test_x, test_y in testloader:
+            images, labels = test_x.cuda(), test_y.cuda()
+            output = model(images)
+            _, predicted = torch.max(output.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    print('Accuracy of the network is: %.4f %%' % accuracy)
+    return accuracy
+
+
+
+if __name__ ==  '__main__':
+    # Train the network
+    train(CNN_1.net, CNN_1.criterion, CNN_1.optimizer, trainloader, epochs=EPOCHS)
+    test(CNN_1.net, testloader)
+
